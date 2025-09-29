@@ -25,18 +25,17 @@ def read_requirements():
 setup(
     name="contextgraph",
     version="0.1.0",
-    author="Your Name",  # Replace with your name
-    author_email="your.email@example.com",  # Replace with your email
+    author="Shailesh Jannu",  # Replace with your name
+    author_email="shaileshj@gmail.com",  # Replace with your email
     description="A powerful graph database with Cypher query support and advanced visualization capabilities",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/contextgraph",  # Replace with your GitHub URL
-    packages=find_packages(),
+    url="https://github.com/shaileshj2803/contextgraph",
+    packages=find_packages(exclude=["tests", "tests.*"]),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Intended Audience :: Science/Research",
-        "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.8",
@@ -82,8 +81,8 @@ setup(
     zip_safe=False,
     keywords="graph database cypher context visualization networkx",
     project_urls={
-        "Bug Reports": "https://github.com/yourusername/contextgraph/issues",
-        "Source": "https://github.com/yourusername/contextgraph",
-        "Documentation": "https://github.com/yourusername/contextgraph#readme",
+        "Bug Reports": "https://github.com/shaileshj2803/contextgraph/issues",
+        "Source": "https://github.com/shaileshj2803/contextgraph",
+        "Documentation": "https://github.com/shaileshj2803/contextgraph#readme",
     },
 )

@@ -1,6 +1,6 @@
 # Include important files in the package
 include README.md
-include LICENSE
+# License handled differently to avoid metadata conflicts
 include CHANGELOG.md
 include requirements.txt
 include requirements-dev.txt
@@ -9,9 +9,8 @@ include requirements-dev.txt
 recursive-include contextgraph *.py
 recursive-include contextgraph py.typed
 
-# Include examples and tests
+# Include examples only (tests excluded from distribution)
 recursive-include examples *.py *.csv *.md
-recursive-include tests *.py
 
 # Exclude unnecessary files
 global-exclude *.pyc
