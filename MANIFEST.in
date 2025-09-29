@@ -1,0 +1,23 @@
+# Include important files in the package
+include README.md
+include LICENSE
+include CHANGELOG.md
+include requirements.txt
+include requirements-dev.txt
+
+# Include package data
+recursive-include contextgraph *.py
+recursive-include contextgraph py.typed
+
+# Include examples and tests
+recursive-include examples *.py *.csv *.md
+recursive-include tests *.py
+
+# Exclude unnecessary files
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__
+global-exclude .DS_Store
+global-exclude *.so
+global-exclude .git*
+global-exclude .pytest_cache

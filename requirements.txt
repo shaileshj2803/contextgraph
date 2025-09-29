@@ -1,0 +1,4 @@
+# Core dependencies
+igraph>=0.10.0
+pyparsing>=3.0.0
+
