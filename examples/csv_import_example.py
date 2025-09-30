@@ -250,6 +250,39 @@ def main():
         max_employees = max(result, key=lambda x: x.get('COUNT(*)', 0))
         print(f"   • Largest employer: {max_employees.get('c.name', 'N / A')} ({max_employees.get('COUNT(*)', 0)} employees)")
 
+    # Demonstrate optimized batch relationship creation
+    print("\n🚀 Demonstrating optimized batch relationship creation...")
+    
+    # Create some additional relationships using the new batch API
+    print("Creating additional relationships using batch API...")
+    
+    # Get some random people for demonstration
+    all_people = db.find_nodes(labels=['Person'])
+    
+    if len(all_people) >= 10:
+        # Prepare batch relationship data
+        batch_relationships = []
+        for i in range(0, min(10, len(all_people) - 1)):
+            batch_relationships.append({
+                'source_id': all_people[i]['id'],
+                'target_id': all_people[i + 1]['id'],
+                'rel_type': 'COLLABORATES_WITH',
+                'properties': {
+                    'project': f'Project_{i}',
+                    'start_date': '2024-01-01',
+                    'intensity': i % 5 + 1
+                }
+            })
+        
+        # Time the batch creation
+        start_time = time.time()
+        batch_rel_ids = db.create_relationships_batch(batch_relationships)
+        batch_time = time.time() - start_time
+        
+        print(f"   • Created {len(batch_rel_ids)} relationships in {batch_time:.4f} seconds")
+        print(f"   • Batch creation rate: {len(batch_rel_ids)/batch_time:.0f} relationships/second")
+        print(f"   • New total relationships: {db.relationship_count}")
+    
     print("\n🎉 CSV Import demonstration completed successfully!")
 
 if __name__ == "__main__":

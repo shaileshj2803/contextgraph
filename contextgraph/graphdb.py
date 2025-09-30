@@ -42,6 +42,9 @@ class GraphDB:
         self._relationship_id_counter = 0
         self.transaction_manager = TransactionManager(self)
         self.csv_importer = CSVImporter(self)
+        
+        # Performance optimization: O(1) lookup for node ID to vertex index
+        self._node_id_to_vertex_index: Dict[int, int] = {}
 
         # Initialize vertex and edge attributes for properties
         self._graph.vs["id"] = []
@@ -86,24 +89,39 @@ class GraphDB:
 
         return self._cypher_parser.parse_and_execute(cypher_query, parameters)
 
-    def create_node(self, labels: Optional[List[str]] = None, properties: Optional[Dict[str, Any]] = None) -> int:
+    def create_node(self, labels: Optional[List[str]] = None,
+                    properties: Optional[Dict[str, Any]] = None,
+                    nodeid: Optional[int] = None) -> int:
         """
         Create a new node in the graph.
 
         Args:
             labels: List of labels for the node
             properties: Dictionary of properties for the node
+            nodeid: Optional specific node ID to use (if None, auto-generates)
 
         Returns:
             int: The internal node ID
+            
+        Raises:
+            GraphDBError: If the specified nodeid already exists
         """
         if labels is None:
             labels = []
         if properties is None:
             properties = {}
 
-        node_id = self._node_id_counter
-        self._node_id_counter += 1
+        # Handle optional nodeid parameter
+        if nodeid is not None:
+            if nodeid in self._node_id_to_vertex_index:
+                raise GraphDBError(f"Node with ID {nodeid} already exists")
+            node_id = nodeid
+            # Update counter if necessary to avoid conflicts
+            if nodeid >= self._node_id_counter:
+                self._node_id_counter = nodeid + 1
+        else:
+            node_id = self._node_id_counter
+            self._node_id_counter += 1
 
         # Add vertex to igraph
         self._graph.add_vertex()
@@ -113,11 +131,15 @@ class GraphDB:
         self._graph.vs[vertex_index]["id"] = node_id
         self._graph.vs[vertex_index]["labels"] = labels
         self._graph.vs[vertex_index]["properties"] = properties
+        
+        # Update O(1) lookup table
+        self._node_id_to_vertex_index[node_id] = vertex_index
 
         return node_id
 
-    def create_relationship(self, source_id: int, target_id: int, rel_type: str,
-                          properties: Optional[Dict[str, Any]] = None) -> int:
+    def create_relationship(self, source_id: int, target_id: int,
+                            rel_type: str,
+                            properties: Optional[Dict[str, Any]] = None) -> int:
         """
         Create a new relationship between two nodes.
 
@@ -136,20 +158,20 @@ class GraphDB:
         if properties is None:
             properties = {}
 
-        # Find vertex indices for the given node IDs
-        source_vertex = self._find_vertex_by_id(source_id)
-        target_vertex = self._find_vertex_by_id(target_id)
+        # Optimized O(1) vertex lookup using hash map
+        source_vertex_index = self._node_id_to_vertex_index.get(source_id)
+        target_vertex_index = self._node_id_to_vertex_index.get(target_id)
 
-        if source_vertex is None:
+        if source_vertex_index is None:
             raise NodeNotFoundError(f"Source node with ID {source_id} not found")
-        if target_vertex is None:
+        if target_vertex_index is None:
             raise NodeNotFoundError(f"Target node with ID {target_id} not found")
 
         relationship_id = self._relationship_id_counter
         self._relationship_id_counter += 1
 
-        # Add edge to igraph
-        self._graph.add_edge(source_vertex.index, target_vertex.index)
+        # Add edge to igraph using vertex indices directly
+        self._graph.add_edge(source_vertex_index, target_vertex_index)
         edge_index = self._graph.ecount() - 1
 
         # Set attributes
@@ -158,6 +180,73 @@ class GraphDB:
         self._graph.es[edge_index]["properties"] = properties
 
         return relationship_id
+
+    def create_relationships_batch(
+            self,
+            relationships: List[Dict[str, Any]]
+    ) -> List[int]:
+        """
+        Create multiple relationships in a batch for better performance.
+
+        Args:
+            relationships: List of relationship dictionaries, each containing:
+                - source_id: ID of the source node
+                - target_id: ID of the target node
+                - rel_type: Type/label of the relationship
+                - properties: Optional dictionary of properties
+
+        Returns:
+            List[int]: List of created relationship IDs
+
+        Raises:
+            NodeNotFoundError: If any source or target node doesn't exist
+        """
+        relationship_ids = []
+        edges_to_add = []
+        edge_attributes = []
+
+        # Validate all nodes exist and prepare edge data
+        for rel_data in relationships:
+            source_id = rel_data['source_id']
+            target_id = rel_data['target_id']
+            rel_type = rel_data['rel_type']
+            properties = rel_data.get('properties', {})
+
+            # Optimized O(1) vertex lookup
+            source_vertex_index = self._node_id_to_vertex_index.get(source_id)
+            target_vertex_index = self._node_id_to_vertex_index.get(target_id)
+
+            if source_vertex_index is None:
+                raise NodeNotFoundError(
+                    f"Source node with ID {source_id} not found")
+            if target_vertex_index is None:
+                raise NodeNotFoundError(
+                    f"Target node with ID {target_id} not found")
+
+            relationship_id = self._relationship_id_counter
+            self._relationship_id_counter += 1
+
+            edges_to_add.append((source_vertex_index, target_vertex_index))
+            edge_attributes.append({
+                'id': relationship_id,
+                'type': rel_type,
+                'properties': properties
+            })
+            relationship_ids.append(relationship_id)
+
+        # Batch add all edges to igraph
+        if edges_to_add:
+            self._graph.add_edges(edges_to_add)
+
+            # Set attributes for all new edges
+            start_edge_index = self._graph.ecount() - len(edges_to_add)
+            for i, attrs in enumerate(edge_attributes):
+                edge_index = start_edge_index + i
+                self._graph.es[edge_index]["id"] = attrs['id']
+                self._graph.es[edge_index]["type"] = attrs['type']
+                self._graph.es[edge_index]["properties"] = attrs['properties']
+
+        return relationship_ids
 
     def get_node(self, node_id: int) -> Optional[Dict[str, Any]]:
         """
@@ -169,10 +258,11 @@ class GraphDB:
         Returns:
             Dictionary containing node data or None if not found
         """
-        vertex = self._find_vertex_by_id(node_id)
-        if vertex is None:
+        vertex_index = self._node_id_to_vertex_index.get(node_id)
+        if vertex_index is None:
             return None
 
+        vertex = self._graph.vs[vertex_index]
         return {
             "id": vertex["id"],
             "labels": vertex["labels"],
@@ -211,11 +301,19 @@ class GraphDB:
         Returns:
             bool: True if the node was deleted, False if not found
         """
-        vertex = self._find_vertex_by_id(node_id)
-        if vertex is None:
+        vertex_index = self._node_id_to_vertex_index.get(node_id)
+        if vertex_index is None:
             return False
 
-        self._graph.delete_vertices(vertex.index)
+        # Remove from lookup table
+        del self._node_id_to_vertex_index[node_id]
+        
+        # Update lookup table for vertices that will shift indices
+        vertices_to_update = [(vid, idx) for vid, idx in self._node_id_to_vertex_index.items() if idx > vertex_index]
+        for vid, idx in vertices_to_update:
+            self._node_id_to_vertex_index[vid] = idx - 1
+            
+        self._graph.delete_vertices(vertex_index)
         return True
 
     def delete_relationship(self, rel_id: int) -> bool:
@@ -369,6 +467,9 @@ class GraphDB:
         self._graph.es["type"] = []
         self._graph.es["properties"] = []
 
+        # Clear and rebuild the lookup table
+        self._node_id_to_vertex_index.clear()
+
         # Recreate nodes
         node_id_to_index = {}
         for node_data in data["nodes"]:
@@ -380,6 +481,8 @@ class GraphDB:
             self._graph.vs[vertex_index]["properties"] = node_data["properties"]
 
             node_id_to_index[node_data["id"]] = vertex_index
+            # Update the optimized lookup table
+            self._node_id_to_vertex_index[node_data["id"]] = vertex_index
 
         # Recreate relationships
         for rel_data in data["relationships"]:
@@ -489,6 +592,9 @@ class GraphDB:
         self._graph.es["type"] = []
         self._graph.es["properties"] = []
 
+        # Clear and rebuild the lookup table
+        self._node_id_to_vertex_index.clear()
+
         # Recreate nodes
         node_id_to_index = {}
         for node_data in data["nodes"]:
@@ -500,6 +606,8 @@ class GraphDB:
             self._graph.vs[vertex_index]["properties"] = node_data["properties"]
 
             node_id_to_index[node_data["id"]] = vertex_index
+            # Update the optimized lookup table
+            self._node_id_to_vertex_index[node_data["id"]] = vertex_index
 
         # Recreate relationships
         for rel_data in data["relationships"]:
@@ -518,6 +626,9 @@ class GraphDB:
         self._graph.clear()
         self._node_id_counter = 0
         self._relationship_id_counter = 0
+        
+        # Clear the lookup table
+        self._node_id_to_vertex_index.clear()
 
         # Reinitialize attributes
         self._graph.vs["id"] = []
@@ -528,11 +639,11 @@ class GraphDB:
         self._graph.es["properties"] = []
 
     def _find_vertex_by_id(self, node_id: int) -> Optional[ig.Vertex]:
-        """Find a vertex by its node ID."""
-        for vertex in self._graph.vs:
-            if vertex["id"] == node_id:
-                return vertex
-        return None
+        """Find a vertex by its node ID. Optimized with O(1) lookup."""
+        vertex_index = self._node_id_to_vertex_index.get(node_id)
+        if vertex_index is None:
+            return None
+        return self._graph.vs[vertex_index]
 
     def _find_edge_by_id(self, rel_id: int) -> Optional[ig.Edge]:
         """Find an edge by its relationship ID."""
