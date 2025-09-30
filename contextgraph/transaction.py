@@ -129,6 +129,8 @@ class Transaction:
             self.graph_db._graph.vs[vertex_index]['properties'] = node_data['properties']
 
             node_id_to_index[node_data['id']] = vertex_index
+            # Update the optimized lookup table
+            self.graph_db._node_id_to_vertex_index[node_data['id']] = vertex_index
 
         # Restore relationships
         for rel_data in state['relationships']:
