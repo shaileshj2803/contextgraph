@@ -118,31 +118,55 @@ class Transaction:
         self.graph_db._node_id_counter = state['node_id_counter']
         self.graph_db._relationship_id_counter = state['relationship_id_counter']
 
-        # Restore nodes
+        # OPTIMIZED: Batch restore nodes
         node_id_to_index = {}
-        for node_data in state['nodes']:
-            self.graph_db._graph.add_vertex()
-            vertex_index = self.graph_db._graph.vcount() - 1
+        if state['nodes']:
+            # Add all vertices at once (much faster than individual add_vertex calls)
+            self.graph_db._graph.add_vertices(len(state['nodes']))
+            
+            # Prepare batch attribute data
+            node_ids = []
+            node_labels = []
+            node_properties = []
+            
+            for vertex_index, node_data in enumerate(state['nodes']):
+                node_ids.append(node_data['id'])
+                node_labels.append(node_data['labels'])
+                node_properties.append(node_data['properties'])
+                
+                node_id_to_index[node_data['id']] = vertex_index
+                # Update the optimized lookup table
+                self.graph_db._node_id_to_vertex_index[node_data['id']] = vertex_index
+            
+            # Set all attributes at once (batch operation)
+            self.graph_db._graph.vs['id'] = node_ids
+            self.graph_db._graph.vs['labels'] = node_labels
+            self.graph_db._graph.vs['properties'] = node_properties
 
-            self.graph_db._graph.vs[vertex_index]['id'] = node_data['id']
-            self.graph_db._graph.vs[vertex_index]['labels'] = node_data['labels']
-            self.graph_db._graph.vs[vertex_index]['properties'] = node_data['properties']
-
-            node_id_to_index[node_data['id']] = vertex_index
-            # Update the optimized lookup table
-            self.graph_db._node_id_to_vertex_index[node_data['id']] = vertex_index
-
-        # Restore relationships
-        for rel_data in state['relationships']:
-            source_index = node_id_to_index[rel_data['source']]
-            target_index = node_id_to_index[rel_data['target']]
-
-            self.graph_db._graph.add_edge(source_index, target_index)
-            edge_index = self.graph_db._graph.ecount() - 1
-
-            self.graph_db._graph.es[edge_index]['id'] = rel_data['id']
-            self.graph_db._graph.es[edge_index]['type'] = rel_data['type']
-            self.graph_db._graph.es[edge_index]['properties'] = rel_data['properties']
+        # OPTIMIZED: Batch restore relationships
+        if state['relationships']:
+            # Prepare edge list for batch creation
+            edges_to_add = []
+            rel_ids = []
+            rel_types = []
+            rel_properties = []
+            
+            for rel_data in state['relationships']:
+                source_index = node_id_to_index[rel_data['source']]
+                target_index = node_id_to_index[rel_data['target']]
+                
+                edges_to_add.append((source_index, target_index))
+                rel_ids.append(rel_data['id'])
+                rel_types.append(rel_data['type'])
+                rel_properties.append(rel_data['properties'])
+            
+            # Add all edges at once (much faster than individual add_edge calls)
+            self.graph_db._graph.add_edges(edges_to_add)
+            
+            # Set all edge attributes at once (batch operation)
+            self.graph_db._graph.es['id'] = rel_ids
+            self.graph_db._graph.es['type'] = rel_types
+            self.graph_db._graph.es['properties'] = rel_properties
 
     def execute(self, operation: Callable, *args, **kwargs) -> Any:
         """

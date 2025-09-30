@@ -24,7 +24,7 @@ def read_requirements():
 
 setup(
     name="contextgraph",
-    version="0.3.0",
+    version="0.3.1",
     author="Shailesh Jannu",  # Replace with your name
     author_email="shaileshj@gmail.com",  # Replace with your email
     description="A powerful graph database with Cypher query support and advanced visualization capabilities",
