@@ -2,7 +2,7 @@
 
 [![PyPI version](https://badge.fury.io/py/contextgraph.svg)](https://badge.fury.io/py/contextgraph)
 [![Python Support](https://img.shields.io/pypi/pyversions/contextgraph.svg)](https://pypi.org/project/contextgraph/)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://github.com/yourusername/contextgraph/workflows/Tests/badge.svg)](https://github.com/yourusername/contextgraph/actions)
 
 A powerful graph database with [Cypher](https://neo4j.com/developer/cypher/) query support and advanced visualization capabilities, built on [igraph](https://igraph.org/).

@@ -24,18 +24,20 @@ def read_requirements():
 
 setup(
     name="contextgraph",
-    version="0.1.2",
+    version="0.2.0",
     author="Shailesh Jannu",  # Replace with your name
     author_email="shaileshj@gmail.com",  # Replace with your email
     description="A powerful graph database with Cypher query support and advanced visualization capabilities",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
     url="https://github.com/shaileshj2803/contextgraph",
+    license="MIT",
     packages=find_packages(exclude=["tests", "tests.*"]),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Intended Audience :: Science/Research",
+        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.8",
